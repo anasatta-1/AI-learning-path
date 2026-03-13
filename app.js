@@ -146,6 +146,6 @@
     doc.save("learning-path-recommendations.pdf");
   }
 
-  downloadBtn.addEventListener("click", downloadPdf);
+  if (downloadBtn) downloadBtn.addEventListener("click", downloadPdf);
   renderCourses();
 })();
