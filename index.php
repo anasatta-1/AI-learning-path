@@ -1,3 +1,30 @@
+<?php
+require_once __DIR__ . '/db.php';
+
+$studentId = '11391';  // current student
+$conn = getDbConnection();
+
+// Fetch student profile
+$stmt = $conn->prepare('SELECT first_name, last_name, advisor_name FROM students WHERE student_id = ?');
+$stmt->bind_param('s', $studentId);
+$stmt->execute();
+$student = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+// Fetch completed courses
+$stmt = $conn->prepare(
+    'SELECT c.course_id, c.course_name, sr.semester_taken, sr.letter_grade
+     FROM student_records sr
+     JOIN courses c ON c.course_id = sr.course_id
+     WHERE sr.student_id = ?
+     ORDER BY sr.semester_taken'
+);
+$stmt->bind_param('s', $studentId);
+$stmt->execute();
+$records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$conn->close();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,24 +54,37 @@
               <th>Letter grade</th>
             </tr>
           </thead>
-          <tbody id="courses-tbody"></tbody>
+          <tbody id="courses-tbody">
+            <?php if (empty($records)): ?>
+            <?php else: ?>
+              <?php foreach ($records as $r): ?>
+              <tr>
+                <td><span class="code-mod"><?= htmlspecialchars($r['course_id']) ?></span></td>
+                <td><span class="code-pres"><?= htmlspecialchars($r['semester_taken']) ?></span></td>
+                <td>
+                  <span class="letter-grade <?= strtoupper($r['letter_grade'] ?? '') === 'N/A' ? 'na' : '' ?>">
+                    <?= htmlspecialchars($r['letter_grade'] ?? '—') ?>
+                  </span>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </tbody>
         </table>
       </div>
-      <div id="empty-state" class="empty-state" style="display: none;">No course records to display.</div>
+      <?php if (empty($records)): ?>
+        <div id="empty-state" class="empty-state">No course records to display.</div>
+      <?php endif; ?>
     </section>
 
     <div class="actions">
-      <button type="button" class="btn btn-primary" id="download-pdf" aria-label="Download PDF">
+      <a href="results.php" class="btn btn-primary" id="see-results">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        Download PDF (recommendations template)
-      </button>
+        See Results
+      </a>
     </div>
   </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="students.js"></script>
-  <script src="app.js"></script>
 </body>
 </html>
