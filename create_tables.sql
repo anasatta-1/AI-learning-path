@@ -1,5 +1,6 @@
 -- Learning Path Database Schema
--- Run this script once to create all required tables.
+-- Matches structure of CSV data files.
+-- Run this script once to create / recreate all required tables.
 
 CREATE DATABASE IF NOT EXISTS `capstonef`
   DEFAULT CHARACTER SET utf8mb4
@@ -9,6 +10,7 @@ USE `capstonef`;
 
 -- ──────────────────────────────────────────────
 -- 1. Courses catalog
+--    CSV columns: course_id, course_name, description, credits, category, semester
 -- ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `courses` (
   `course_id`   VARCHAR(20)  NOT NULL,
@@ -22,24 +24,41 @@ CREATE TABLE IF NOT EXISTS `courses` (
 
 -- ──────────────────────────────────────────────
 -- 2. Students
+--    CSV columns: student_id, enrollment_year, gender, age
+--    (first_name, last_name, advisor_name removed — not in CSV)
 -- ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `students` (
-  `student_id`   VARCHAR(20)  NOT NULL,
-  `first_name`   VARCHAR(60)  NOT NULL,
-  `last_name`    VARCHAR(60)  NOT NULL,
-  `advisor_name` VARCHAR(120) DEFAULT NULL,
+  `student_id`       VARCHAR(20)  NOT NULL,
+  `enrollment_year`  SMALLINT     NOT NULL,
+  `gender`           CHAR(1)      NOT NULL DEFAULT 'M',
+  `age`              TINYINT      NOT NULL DEFAULT 18,
   PRIMARY KEY (`student_id`)
 ) ENGINE=InnoDB;
 
 -- ──────────────────────────────────────────────
--- 3. Student academic records (courses taken)
+-- 3. Prerequisites
+--    CSV columns: course_id, prerequisite_course_id
+-- ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `prerequisites` (
+  `course_id`              VARCHAR(20) NOT NULL,
+  `prerequisite_course_id` VARCHAR(20) NOT NULL,
+  PRIMARY KEY (`course_id`, `prerequisite_course_id`),
+  CONSTRAINT `fk_prereq_course`  FOREIGN KEY (`course_id`)              REFERENCES `courses`(`course_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_prereq_prereq`  FOREIGN KEY (`prerequisite_course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ──────────────────────────────────────────────
+-- 4. Student academic records (courses taken)
+--    CSV columns: student_id, course_name, course_id, final_result, score, letter_grade
 -- ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `student_records` (
   `record_id`      INT          NOT NULL AUTO_INCREMENT,
   `student_id`     VARCHAR(20)  NOT NULL,
   `course_id`      VARCHAR(20)  NOT NULL,
-  `semester_taken` VARCHAR(20)  NOT NULL,
-  `letter_grade`   VARCHAR(5)   DEFAULT NULL,
+  `course_name`    VARCHAR(120) DEFAULT NULL,
+  `final_result`   VARCHAR(20)  DEFAULT NULL,
+  `score`          VARCHAR(10)  DEFAULT NULL,
+  `letter_grade`   VARCHAR(10)  DEFAULT NULL,
   PRIMARY KEY (`record_id`),
   KEY `idx_student` (`student_id`),
   CONSTRAINT `fk_sr_student` FOREIGN KEY (`student_id`) REFERENCES `students`(`student_id`) ON DELETE CASCADE,
@@ -47,7 +66,7 @@ CREATE TABLE IF NOT EXISTS `student_records` (
 ) ENGINE=InnoDB;
 
 -- ──────────────────────────────────────────────
--- 4. AI-generated recommendations (cache)
+-- 5. AI-generated recommendations (cache)
 -- ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `ai_recommendations` (
   `rec_id`                INT          NOT NULL AUTO_INCREMENT,

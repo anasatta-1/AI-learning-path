@@ -24,7 +24,7 @@ if ($studentId === '') {
 $conn = getDbConnection();
 
 // ── 2. Fetch student profile ───────────────────────────────
-$stmt = $conn->prepare('SELECT student_id, first_name, last_name, advisor_name FROM students WHERE student_id = ?');
+$stmt = $conn->prepare('SELECT student_id, enrollment_year, age FROM students WHERE student_id = ?');
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -40,11 +40,11 @@ if (!$student) {
 // ── 3. Fetch completed courses with grades ─────────────────
 $stmt = $conn->prepare(
     'SELECT c.course_id, c.course_name, c.credits, c.category, c.semester,
-            sr.semester_taken, sr.letter_grade
+            sr.letter_grade
      FROM student_records sr
      JOIN courses c ON c.course_id = sr.course_id
      WHERE sr.student_id = ?
-     ORDER BY sr.semester_taken'
+     ORDER BY c.semester'
 );
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
@@ -72,7 +72,7 @@ $stmt->close();
 // ── 5. Build Gemini prompt ─────────────────────────────────
 $completedText = '';
 foreach ($completedRows as $row) {
-    $completedText .= "- {$row['course_id']} ({$row['course_name']}): Grade {$row['letter_grade']}, {$row['credits']} credits, taken in {$row['semester_taken']}\n";
+    $completedText .= "- {$row['course_id']} ({$row['course_name']}): Grade {$row['letter_grade']}, {$row['credits']} credits, taken in {$row['semester']}\n";
 }
 
 $availableText = '';
@@ -188,9 +188,9 @@ $conn->close();
 // ── 9. Return JSON to frontend ─────────────────────────────
 echo json_encode([
     'student' => [
-        'name'    => $student['first_name'] . ' ' . $student['last_name'],
+        'name'    => 'Student ' . $student['student_id'],
         'number'  => $student['student_id'],
-        'advisor' => $student['advisor_name'],
+        'advisor' => 'N/A',
     ],
     'courses' => $aiResult['courses'],
     'reason'  => $aiResult['reason'] ?? '',

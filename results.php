@@ -330,7 +330,7 @@
     let whyRecommended = '';
 
     /* ── Fetch recommendations from API ── */
-    const studentId = '11391'; // current student
+    const studentId = '1001'; // current student
     fetch('api/recommend.php?student_id=' + encodeURIComponent(studentId))
       .then(function (res) {
         if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Request failed'); });

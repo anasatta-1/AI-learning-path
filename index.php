@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__ . '/db.php';
 
-$studentId = '11391';  // current student
+$studentId = '1001';  // current student
 $conn = getDbConnection();
 
 // Fetch student profile
-$stmt = $conn->prepare('SELECT first_name, last_name, advisor_name FROM students WHERE student_id = ?');
+$stmt = $conn->prepare('SELECT student_id, enrollment_year, age FROM students WHERE student_id = ?');
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -13,11 +13,11 @@ $stmt->close();
 
 // Fetch completed courses
 $stmt = $conn->prepare(
-    'SELECT c.course_id, c.course_name, sr.semester_taken, sr.letter_grade
+    'SELECT c.course_id, c.course_name, c.semester, sr.letter_grade
      FROM student_records sr
      JOIN courses c ON c.course_id = sr.course_id
      WHERE sr.student_id = ?
-     ORDER BY sr.semester_taken'
+     ORDER BY c.semester'
 );
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
@@ -60,7 +60,7 @@ $conn->close();
               <?php foreach ($records as $r): ?>
               <tr>
                 <td><span class="code-mod"><?= htmlspecialchars($r['course_id']) ?></span></td>
-                <td><span class="code-pres"><?= htmlspecialchars($r['semester_taken']) ?></span></td>
+                <td><span class="code-pres"><?= htmlspecialchars($r['semester'] ?? 'N/A') ?></span></td>
                 <td>
                   <span class="letter-grade <?= strtoupper($r['letter_grade'] ?? '') === 'N/A' ? 'na' : '' ?>">
                     <?= htmlspecialchars($r['letter_grade'] ?? '—') ?>
