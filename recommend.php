@@ -11,10 +11,36 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
-require_once __DIR__ . '/../db.php';
+session_start();
+
+if (isset($_SESSION['last_recommend_time'])) {
+    $elapsed = time() - $_SESSION['last_recommend_time'];
+    if ($elapsed < 15) {
+        $wait_time = 15 - $elapsed;
+        http_response_code(429);
+        echo json_encode(['error' => "Rate limit exceeded. Please wait $wait_time seconds before requesting recommended courses again."]);
+        exit;
+    }
+}
+$_SESSION['last_recommend_time'] = time();
+
+// Note: Ensure this path is correct for your environment.
+if (file_exists(__DIR__ . '/db.php')) {
+    require_once __DIR__ . '/db.php';
+} else {
+    require_once __DIR__ . '/../db.php';
+}
 
 // ── 1. Validate input ──────────────────────────────────────
-$studentId = $_GET['student_id'] ?? '';
+$studentId = trim($_GET['student_id'] ?? '');
+
+// Added input sanitization (SQL protection)
+if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $studentId)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid student ID format.']);
+    exit;
+}
+
 if ($studentId === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Missing student_id parameter.']);
@@ -24,7 +50,7 @@ if ($studentId === '') {
 $conn = getDbConnection();
 
 // ── 2. Fetch student profile ───────────────────────────────
-$stmt = $conn->prepare('SELECT student_id, first_name, last_name, advisor_name FROM students WHERE student_id = ?');
+$stmt = $conn->prepare('SELECT student_id, enrollment_year, age FROM students WHERE student_id = ?');
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -40,11 +66,11 @@ if (!$student) {
 // ── 3. Fetch completed courses with grades ─────────────────
 $stmt = $conn->prepare(
     'SELECT c.course_id, c.course_name, c.credits, c.category, c.semester,
-            sr.semester_taken, sr.letter_grade
+            sr.letter_grade
      FROM student_records sr
      JOIN courses c ON c.course_id = sr.course_id
      WHERE sr.student_id = ?
-     ORDER BY sr.semester_taken'
+     ORDER BY c.semester'
 );
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
@@ -72,7 +98,7 @@ $stmt->close();
 // ── 5. Build Gemini prompt ─────────────────────────────────
 $completedText = '';
 foreach ($completedRows as $row) {
-    $completedText .= "- {$row['course_id']} ({$row['course_name']}): Grade {$row['letter_grade']}, {$row['credits']} credits, taken in {$row['semester_taken']}\n";
+    $completedText .= "- {$row['course_id']} ({$row['course_name']}): Grade {$row['letter_grade']}, {$row['credits']} credits, taken in {$row['semester']}\n";
 }
 
 $availableText = '';
@@ -188,9 +214,9 @@ $conn->close();
 // ── 9. Return JSON to frontend ─────────────────────────────
 echo json_encode([
     'student' => [
-        'name'    => $student['first_name'] . ' ' . $student['last_name'],
+        'name'    => 'Student ' . $student['student_id'],
         'number'  => $student['student_id'],
-        'advisor' => $student['advisor_name'],
+        'advisor' => 'N/A',
     ],
     'courses' => $aiResult['courses'],
     'reason'  => $aiResult['reason'] ?? '',
