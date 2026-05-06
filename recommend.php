@@ -1,20 +1,25 @@
 <?php
 /**
- * API endpoint: GET /api/recommend.php?student_id=XXXXX
+ * REST API endpoint: GET /api/recommend.php?student_id=XXXXX
  *
- * 1. Fetches student profile + academic records from DB
- * 2. Sends transcript + available courses to Gemini AI
- * 3. Saves recommendations to ai_recommendations table
- * 4. Returns JSON response to the frontend
+ * Flow:
+ *   1. Validate student_id param
+ *   2. Fetch student profile from DB
+ *   3. Calculate completed_semesters (integer 1–8) from student_records
+ *   4. POST { student_id, completed_semesters } to AI_MODEL_URL
+ *   5. Parse model response { courses, reason }
+ *   6. Cache results in ai_recommendations table
+ *   7. Return JSON to frontend
  */
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
+require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../db.php';
 
-// ── 1. Validate input ──────────────────────────────────────
-$studentId = $_GET['student_id'] ?? '';
+// ── 1. Validate input ──────────────────────────────────────────────────────
+$studentId = trim($_GET['student_id'] ?? '');
 if ($studentId === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Missing student_id parameter.']);
@@ -23,8 +28,10 @@ if ($studentId === '') {
 
 $conn = getDbConnection();
 
-// ── 2. Fetch student profile ───────────────────────────────
-$stmt = $conn->prepare('SELECT student_id, enrollment_year, age FROM students WHERE student_id = ?');
+// ── 2. Fetch student profile ───────────────────────────────────────────────
+$stmt = $conn->prepare(
+    'SELECT student_id, enrollment_year, age FROM students WHERE student_id = ?'
+);
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
@@ -37,7 +44,42 @@ if (!$student) {
     exit;
 }
 
-// ── 3. Fetch completed courses with grades ─────────────────
+// ── 3. Calculate completed_semesters ──────────────────────────────────────
+// Count the number of distinct semester numbers the student has records in.
+// The courses.semester column stores labels like "1st fall", "2nd spring", etc.
+// We map those labels to integers 1–8.
+$stmt = $conn->prepare(
+    'SELECT DISTINCT c.semester
+     FROM student_records sr
+     JOIN courses c ON c.course_id = sr.course_id
+     WHERE sr.student_id = ?'
+);
+$stmt->bind_param('s', $studentId);
+$stmt->execute();
+$semesterRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// Map semester label → integer (e.g. "1st fall"→1, "2nd spring"→2 … "8th spring"→8)
+$semesterMap = [
+    '1st fall'   => 1,
+    '2nd spring' => 2,
+    '3rd fall'   => 3,
+    '4th spring' => 4,
+    '5th fall'   => 5,
+    '6th spring' => 6,
+    '7th fall'   => 7,
+    '8th spring' => 8,
+];
+
+$completedSemesters = 0;
+foreach ($semesterRows as $row) {
+    $label = strtolower(trim($row['semester']));
+    if (isset($semesterMap[$label])) {
+        $completedSemesters = max($completedSemesters, $semesterMap[$label]);
+    }
+}
+
+// Also fetch completed course list to return to frontend
 $stmt = $conn->prepare(
     'SELECT c.course_id, c.course_name, c.credits, c.category, c.semester,
             sr.letter_grade
@@ -48,151 +90,114 @@ $stmt = $conn->prepare(
 );
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
-$completedRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$completedCourses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// ── 4. Fetch available (not-yet-taken) courses ─────────────
-$completedIds = array_column($completedRows, 'course_id');
-if (count($completedIds) > 0) {
-    $placeholders = implode(',', array_fill(0, count($completedIds), '?'));
-    $types = str_repeat('s', count($completedIds));
-    $sql = "SELECT course_id, course_name, credits, category, semester
-            FROM courses
-            WHERE course_id NOT IN ($placeholders)
-            ORDER BY semester, course_id";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$completedIds);
-} else {
-    $stmt = $conn->prepare('SELECT course_id, course_name, credits, category, semester FROM courses ORDER BY semester, course_id');
-}
-$stmt->execute();
-$availableCourses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+// ── 4. Determine model URL ─────────────────────────────────────────────────
+$modelUrl = AI_MODEL_URL;
 
-// ── 5. Build Gemini prompt ─────────────────────────────────
-$completedText = '';
-foreach ($completedRows as $row) {
-    $completedText .= "- {$row['course_id']} ({$row['course_name']}): Grade {$row['letter_grade']}, {$row['credits']} credits, taken in {$row['semester']}\n";
+// Fall back to the local mock endpoint if no real URL is configured
+if ($modelUrl === '') {
+    $scheme   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $basePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+    $modelUrl = $scheme . '://' . $host . $basePath . '/api/mock_model.php';
 }
 
-$availableText = '';
-foreach ($availableCourses as $row) {
-    $availableText .= "- {$row['course_id']} ({$row['course_name']}): {$row['credits']} credits, {$row['category']}, planned for {$row['semester']}\n";
-}
-
-$prompt = <<<PROMPT
-You are an academic advisor AI. A student has completed the following courses:
-
-$completedText
-
-The following courses are still available in the curriculum:
-
-$availableText
-
-Based on the student's completed courses and grades, recommend the top 3 courses the student should take next. Consider:
-1. Prerequisite logic (natural course progression)
-2. The student's strengths (higher grades)
-3. A mix of core and elective courses when appropriate
-
-Respond with ONLY valid JSON in this exact format, no markdown, no code fences:
-{"courses":[{"code":"COURSE_ID","name":"COURSE_NAME"},{"code":"COURSE_ID","name":"COURSE_NAME"},{"code":"COURSE_ID","name":"COURSE_NAME"}],"reason":"A 2-3 sentence explanation of why these courses are recommended based on the student's performance."}
-PROMPT;
-
-// ── 6. Call Gemini API ─────────────────────────────────────
-$apiKey  = GEMINI_API_KEY;
-$model   = GEMINI_MODEL;
-$apiUrl  = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
-
+// ── 5. Build request payload ───────────────────────────────────────────────
 $payload = json_encode([
-    'contents' => [
-        [
-            'parts' => [
-                ['text' => $prompt]
-            ]
-        ]
-    ],
-    'generationConfig' => [
-        'temperature'     => 0.7,
-        'maxOutputTokens' => 1024,
-    ]
+    'student_id'          => $studentId,
+    'completed_semesters' => $completedSemesters,
 ]);
 
-$ch = curl_init($apiUrl);
+// ── 6. Call AI model via cURL ──────────────────────────────────────────────
+$headers = ['Content-Type: application/json'];
+if (AI_MODEL_API_KEY !== '') {
+    $headers[] = 'Authorization: Bearer ' . AI_MODEL_API_KEY;
+}
+
+$ch = curl_init($modelUrl);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => true,
-    CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+    CURLOPT_HTTPHEADER     => $headers,
     CURLOPT_POSTFIELDS     => $payload,
-    CURLOPT_TIMEOUT        => 30,
+    CURLOPT_TIMEOUT        => AI_MODEL_TIMEOUT,
     CURLOPT_SSL_VERIFYPEER => true,
 ]);
 
-$response   = curl_exec($ch);
-$httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError  = curl_error($ch);
+$response  = curl_exec($ch);
+$httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
 curl_close($ch);
 
 if ($curlError) {
     http_response_code(502);
-    echo json_encode(['error' => 'Gemini API request failed: ' . $curlError]);
+    echo json_encode([
+        'error'  => 'AI model request failed (network error).',
+        'detail' => $curlError,
+    ]);
     $conn->close();
     exit;
 }
 
 if ($httpCode !== 200) {
     http_response_code(502);
-    echo json_encode(['error' => 'Gemini API returned HTTP ' . $httpCode, 'detail' => json_decode($response, true)]);
+    echo json_encode([
+        'error'  => 'AI model returned HTTP ' . $httpCode . '.',
+        'detail' => json_decode($response, true),
+    ]);
     $conn->close();
     exit;
 }
 
-// ── 7. Parse Gemini response ───────────────────────────────
-$geminiData = json_decode($response, true);
-$rawText = $geminiData['candidates'][0]['content']['parts'][0]['text'] ?? '';
+// ── 7. Parse model response ────────────────────────────────────────────────
+$aiResult = json_decode($response, true);
 
-// Strip markdown code fences if present
-$rawText = preg_replace('/^```(?:json)?\s*/i', '', $rawText);
-$rawText = preg_replace('/\s*```\s*$/', '', $rawText);
-$rawText = trim($rawText);
-
-$aiResult = json_decode($rawText, true);
-
-if (!$aiResult || !isset($aiResult['courses'])) {
+if (!$aiResult || !isset($aiResult['courses']) || !is_array($aiResult['courses'])) {
     http_response_code(502);
-    echo json_encode(['error' => 'Could not parse Gemini response.', 'raw' => $rawText]);
+    echo json_encode([
+        'error' => 'Could not parse AI model response.',
+        'raw'   => $response,
+    ]);
     $conn->close();
     exit;
 }
 
-// ── 8. Save recommendations to DB ──────────────────────────
-// Clear old recommendations for this student
+$courses = $aiResult['courses'];  // [{ "code": "...", "name": "..." }, ...]
+$reason  = $aiResult['reason'] ?? '';
+
+// ── 8. Cache recommendations in DB ────────────────────────────────────────
+// Clear previous recommendations for this student
 $stmt = $conn->prepare('DELETE FROM ai_recommendations WHERE student_id = ?');
 $stmt->bind_param('s', $studentId);
 $stmt->execute();
 $stmt->close();
 
+// Insert new ones (only courses that exist in the courses table)
 $stmtInsert = $conn->prepare(
     'INSERT INTO ai_recommendations (student_id, course_id, recommendation_reason, status)
      VALUES (?, ?, ?, ?)'
 );
 $status = 'pending';
-foreach ($aiResult['courses'] as $course) {
-    $courseCode = $course['code'];
-    $reason = $aiResult['reason'] ?? '';
+foreach ($courses as $course) {
+    $courseCode = $course['code'] ?? '';
+    if ($courseCode === '') continue;
     $stmtInsert->bind_param('ssss', $studentId, $courseCode, $reason, $status);
     $stmtInsert->execute();
 }
 $stmtInsert->close();
 $conn->close();
 
-// ── 9. Return JSON to frontend ─────────────────────────────
+// ── 9. Return JSON to frontend ─────────────────────────────────────────────
 echo json_encode([
     'student' => [
         'name'    => 'Student ' . $student['student_id'],
         'number'  => $student['student_id'],
         'advisor' => 'N/A',
     ],
-    'courses' => $aiResult['courses'],
-    'reason'  => $aiResult['reason'] ?? '',
-    'completed_courses' => $completedRows,
+    'completed_semesters' => $completedSemesters,
+    'courses'             => $courses,
+    'reason'              => $reason,
+    'completed_courses'   => $completedCourses,
 ]);
