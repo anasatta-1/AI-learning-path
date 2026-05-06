@@ -406,23 +406,23 @@ def recommend_courses(student_id: int,
             break
 
     return {
-        "student_id":                   student_id,
-        "sim_max_semester":             sim_max_semester,
-        "mode":                         "simulation" if sim_max_semester is not None else "real",
-        "student_profile": {
-            "gpa":               feats["gpa"],
-            "avg_score":         feats["avg_score"],
-            "pass_rate":         feats["pass_rate"],
-            "courses_passed":    feats["courses_passed"],
-            "courses_failed":    feats["courses_failed"],
-            "courses_withdrawn": feats["courses_withdrawn"],
-            "inferred_semester": feats["inferred_semester"],
+        'student_id': student_id,
+        'sim_max_semester': sim_max_semester,
+        'mode': 'simulation' if sim_max_semester is not None else 'real',
+        'student_profile': {
+            'gpa': feats['gpa'],
+            'avg_score': feats['avg_score'],
+            'pass_rate': feats['pass_rate'],
+            'courses_passed': feats['courses_passed'],
+            'courses_failed': feats['courses_failed'],
+            'courses_withdrawn': feats['courses_withdrawn'],
+            'inferred_semester': feats['inferred_semester'],
         },
-        "recommended_courses":          selected,
-        "total_recommended_credits":    total_credits,
-        "courses_to_retry":             [c for c in selected if c["is_retry"]],
-        "risky_courses":                [c for c in selected if c["risk"]],
-        "blocked_upcoming":             get_blocked_courses(G, passed_ids, all_taken, courses)[:5],
+        'recommended_courses': selected,
+        'total_recommended_credits': total_credits,
+        'courses_to_retry': [c for c in selected if c['is_retry']],
+        'risky_courses': [c for c in selected if c['risk']],
+        'blocked_upcoming': get_blocked_courses(G, passed_ids, all_taken, courses)[:5],
     }
 
 
