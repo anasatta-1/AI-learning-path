@@ -2,15 +2,84 @@
   --bg: #0f0f12;
   --surface: #18181c;
   --border: #2a2a30;
-  --text: #e4e4e7;
-  --muted: #71717a;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
   --accent: #22c55e;
   --accent-hover: #16a34a;
   --grade-pass: #22c55e;
   --grade-muted: #71717a;
+  --overlay: rgba(255, 255, 255, 0.03);
+  --modal-bg: rgba(4, 4, 7, 0.78);
+  --input-bg: #101015;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* { box-sizing: border-box; }
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --grade-pass: #16a34a;
+  --grade-muted: #94a3b8;
+  --overlay: rgba(15, 23, 42, 0.03);
+  --modal-bg: rgba(15, 23, 42, 0.6);
+  --input-bg: #f1f5f9;
+}
+
+* {
+  box-sizing: border-box;
+  transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
+/* Theme Switcher Styles */
+.theme-switch {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.theme-switch:hover {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.theme-switch svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+[data-theme="light"] .sun-icon {
+  display: none;
+}
+
+[data-theme="dark"] .moon-icon {
+  display: none;
+}
+
+:root:not([data-theme="light"]) .moon-icon {
+  display: none;
+}
+
 
 body {
   margin: 0;
@@ -21,9 +90,17 @@ body {
   line-height: 1.5;
 }
 
-.container { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem; }
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
 
-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
 
 .header-row {
   display: flex;
@@ -39,7 +116,7 @@ header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid v
   gap: 0.5rem;
   font-size: 0.85rem;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--overlay);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.25rem 0.65rem;
@@ -55,9 +132,18 @@ header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid v
   color: var(--accent-hover);
 }
 
-h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem 0; letter-spacing: -0.02em; }
+h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
 
-.subtitle { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
 
 .preview-section {
   background: var(--surface);
@@ -72,7 +158,7 @@ h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem 0; letter-spacing:
   font-weight: 600;
   margin: 0;
   padding: 1rem 1.25rem;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--overlay);
   border-bottom: 1px solid var(--border);
 }
 
@@ -96,7 +182,7 @@ h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem 0; letter-spacing:
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--overlay);
 }
 
 .semester-groups {
@@ -121,7 +207,7 @@ h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem 0; letter-spacing:
   padding: 0.85rem 1rem;
   font-size: 0.88rem;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--overlay);
 }
 
 .semester-summary::-webkit-details-marker {
@@ -133,9 +219,15 @@ h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem 0; letter-spacing:
   font-size: 0.8rem;
 }
 
-.courses-table-wrap { overflow-x: auto; }
+.courses-table-wrap {
+  overflow-x: auto;
+}
 
-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
 
 th {
   text-align: left;
@@ -147,21 +239,45 @@ th {
   letter-spacing: 0.05em;
 }
 
-td { padding: 0.875rem 1.25rem; border-top: 1px solid var(--border); }
+td {
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
 
-tr:hover td { background: rgba(255, 255, 255, 0.02); }
+tr:hover td {
+  background: var(--overlay);
+}
 
-.code-mod { font-family: "JetBrains Mono", monospace; font-weight: 500; color: var(--text); }
+.code-mod {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 500;
+  color: var(--text);
+}
 
-.code-pres { font-family: "JetBrains Mono", monospace; font-size: 0.85em; color: var(--muted); }
+.code-pres {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85em;
+  color: var(--muted);
+}
 
-.letter-grade { font-weight: 600; font-variant-numeric: tabular-nums; }
+.letter-grade {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 
-.letter-grade:not(.na) { color: var(--grade-pass); }
+.letter-grade:not(.na) {
+  color: var(--grade-pass);
+}
 
-.letter-grade.na { color: var(--grade-muted); }
+.letter-grade.na {
+  color: var(--grade-muted);
+}
 
-.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 
 .btn {
   display: inline-flex;
@@ -177,18 +293,31 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
   transition: background 0.15s, color 0.15s;
 }
 
-.btn-primary { background: var(--accent); color: #0a0a0b; }
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+}
 
-.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
 
-.btn svg { width: 1.1em; height: 1.1em; }
+.btn svg {
+  width: 1.1em;
+  height: 1.1em;
+}
 
-.empty-state { padding: 2rem 1.25rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+.empty-state {
+  padding: 2rem 1.25rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(4, 4, 7, 0.78);
+  background: var(--modal-bg);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -230,7 +359,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .login-form input {
   width: 100%;
   border: 1px solid var(--border);
-  background: #101015;
+  background: var(--input-bg);
   color: var(--text);
   border-radius: 8px;
   padding: 0.65rem 0.75rem;
