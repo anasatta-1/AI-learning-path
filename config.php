@@ -12,11 +12,6 @@ define('DB_NAME', 'capstonef');
 
 
 
-// ── External AI Model ───────────────────────────
-// Set to your model's prediction endpoint, e.g.:
-//   http://localhost:5000/predict
-//   https://your-cloud-model.example.com/api/recommend
-// Leave empty to use the local Python bridge.
 define('AI_MODEL_URL',     '');
 define('AI_MODEL_TIMEOUT', 60);          // request timeout in seconds
 define('AI_MODEL_API_KEY', '');          // auth key sent as Bearer token
