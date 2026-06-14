@@ -10,9 +10,7 @@ define('DB_USER', 'root');
 define('DB_PASS', '');          // default XAMPP — change in production
 define('DB_NAME', 'capstonef');
 
-// ── Google Gemini API (legacy fallback) ─────────
-define('GEMINI_API_KEY', 'AIzaSyB8MKItEuBAsbfxDF58mwAyAULH5gxer-Q');
-define('GEMINI_MODEL',   'gemini-2.0-flash');
+
 
 // ── External AI Model ───────────────────────────
 // Set to your model's prediction endpoint, e.g.:
