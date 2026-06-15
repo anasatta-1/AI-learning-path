@@ -1,0 +1,17 @@
+# Learning Path
+
+A simple web application that displays a student's course history and allows them to download a personalized learning path and course recommendations as a PDF.
+
+## Files
+
+- `index.php`: The main entry point of the application. It includes the header, the course history table, and the download button.
+- `style.css`: Contains the styling for the application. It uses a modern dark theme with CSS variables, flexbox for layout, and modern typography (`DM Sans` and `JetBrains Mono`).
+- `students.js`: Provides mock data for the application. It defines an array of student records (`window.STUDENT_RECORDS`) and specifies the current student ID (`window.CURRENT_STUDENT_ID`).
+- `app.js`: The core logic of the application. It filters the student records for the current student, populates the table in `index.php`, and handles the PDF generation and download using the `jspdf` library.
+- `.gitignore`: Specifies intentionally untracked files that Git should ignore.
+
+## Features
+
+- **Course History Preview**: Displays the student's previous courses, semesters, and letter grades.
+- **Empty State Handling**: Shows a message if no course records are found for the student.
+- **PDF Generation**: Generates a professional-looking PDF document containing custom course recommendations and explanations for the student, using the `jspdf` library.
